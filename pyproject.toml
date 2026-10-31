@@ -1,0 +1,46 @@
+[project]
+name = "computenexa-mcp"
+version = "0.1.0"
+description = "MCP server for ComputeNexa: let your AI assistant find, launch and stop private GPUs."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "ComputeNexa", email = "support@computenexa.com" }]
+maintainers = [{ name = "ComputeNexa", email = "support@computenexa.com" }]
+requires-python = ">=3.10"
+dependencies = ["mcp>=2.3,<3", "computenexa>=0.3.0,<1", "pydantic>=2.12,<3"]
+keywords = ["mcp", "model context protocol", "gpu", "cloud", "ai agents", "computenexa", "claude", "cursor"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Typing :: Typed",
+]
+
+[project.scripts]
+computenexa-mcp = "computenexa_mcp.server:main"
+
+[project.urls]
+Homepage = "https://computenexa.com"
+Documentation = "https://app.computenexa.com/help/mcp"
+Source = "https://github.com/computenexa-gpuInfrastructure/computenexa-mcp"
+Support = "https://app.computenexa.com/help"
+
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/computenexa_mcp"]
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"

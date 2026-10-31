@@ -1,0 +1,45 @@
+# Publishes to PyPI when a GitHub release is published (tag v<version>, matching pyproject.toml and server.json).
+# Uses PyPI trusted publishing: no password or token is stored anywhere. One-time setup on pypi.org
+# (account support@computenexa.com): add a trusted publisher for this repo, workflow publish.yml, environment pypi.
+# Then lists the release in the official MCP Registry, signed in with this repository's GitHub OIDC identity
+# (namespace io.github.computenexa-gpuInfrastructure); the registry checks the mcp-name line in README.md on PyPI.
+name: publish
+on:
+  release:
+    types: [published]
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: The tag matches the package and server.json versions
+        run: |
+          version="$(grep -m1 '^version' pyproject.toml | cut -d'"' -f2)"
+          test "${GITHUB_REF_NAME#v}" = "$version"
+          test "$(jq -r .version server.json)" = "$version"
+          test "$(jq -r '.packages[0].version' server.json)" = "$version"
+      - run: uv sync && uv run ruff check src tests && uv run pytest -q
+      - run: uv build
+      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: List it in the MCP Registry
+        env:
+          MCP_PUBLISHER_VERSION: v1.8.1
+        run: |
+          base_url="https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}"
+          archive="mcp-publisher_linux_amd64.tar.gz"
+          curl --fail --location --silent --show-error --output "$archive" "$base_url/$archive"
+          curl --fail --location --silent --show-error --output "$archive.sigstore.json" "$base_url/$archive.sigstore.json"
+          cosign verify-blob --bundle "$archive.sigstore.json" \
+            --certificate-identity "https://github.com/modelcontextprotocol/registry/.github/workflows/release.yml@refs/tags/${MCP_PUBLISHER_VERSION}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" "$archive"
+          tar xzf "$archive" mcp-publisher
+          # PyPI can take a minute to serve a new release; the registry reads its README from there.
+          for i in 1 2 3 4 5 6; do curl -fsS "https://pypi.org/pypi/computenexa-mcp/${GITHUB_REF_NAME#v}/json" >/dev/null && break; sleep 20; done
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
